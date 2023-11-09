@@ -1,0 +1,9 @@
+/thrash/
+.ipynb_checkpoints
+.env
+scores
+language_models
+data
+venv
+__pycache__
+
