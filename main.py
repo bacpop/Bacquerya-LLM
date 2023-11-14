@@ -46,7 +46,7 @@ def root():
 
 @app.post("/summarise")
 def call_summariser(text2summarise: Text2Summarise):
-    #summariser.get_query_embedding(text2summarise.query)
+    summariser.get_query_embedding(text2summarise.query)
     output_lst = []
     for text in text2summarise.texts:
         text_summary = summariser.summarise(
@@ -56,10 +56,11 @@ def call_summariser(text2summarise: Text2Summarise):
          do_sample=text2summarise.do_sample,
          temperature=text2summarise.temperature
         )
+        score = float(summariser.get_similarity_score(text_summary))
         output_lst.append(
             {"text": text,
              "summary": text_summary,
-             #"score": summariser.get_similarity_score(text_summary)
+             "score": score
              })
     return output_lst
 

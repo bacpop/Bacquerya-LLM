@@ -61,8 +61,10 @@ class Summariser:
         :param text:
         :return:
         """
-        emb_texts = self.embedding_model.encode(text, convert_to_tensor=True)
-        return self.emb_query @ emb_texts.T
+        from torch import cosine_similarity
+        emb_text = self.embedding_model.encode(text, convert_to_tensor=True)
+
+        return cosine_similarity(self.emb_query, emb_text, dim=0)
 
     @staticmethod
     def _prepare_prompt4llama(text, max_length):
