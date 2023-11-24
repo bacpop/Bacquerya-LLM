@@ -3,28 +3,34 @@
 ## Output: summary of the texts (paragraphs) with relevance scores to the query
 
 
-def start_language_models():
+def start_language_models(lang_model_path=None, emb_model_path=None, device=None, chat_type=None, n_ctx=None, task=''):
     ### Load LLM models
-    from config import DEFAULT_SUMMARISER_LANG_MODEL, DEFAULT_EMBEDDING_LANG_MODEL, DEVICE_MAP
-    from lib.summariser import Summariser
-    lang_model = DEFAULT_SUMMARISER_LANG_MODEL
-    emb_model = DEFAULT_EMBEDDING_LANG_MODEL
-    device = DEVICE_MAP
-    summariser_obj = Summariser(
-        summariser_model_path=lang_model,
-        embedding_model_path=emb_model,
-        device_map=device
+    from config import DEFAULT_SUMMARISER_LANG_MODEL, DEFAULT_EMBEDDING_LANG_MODEL, DEVICE_MAP, CHAT_TYPE, N_CTX
+    from lib.summariser import LLM
+    lang_model_path = DEFAULT_SUMMARISER_LANG_MODEL if lang_model_path is None else lang_model_path
+    emb_model_path = DEFAULT_EMBEDDING_LANG_MODEL if emb_model_path is None else emb_model_path
+    device = DEVICE_MAP if device is None else device
+    chat_type = CHAT_TYPE if chat_type is None else chat_type
+    n_ctx = N_CTX if n_ctx is None else n_ctx
+
+    language_model = LLM(
+        main_model_path=lang_model_path,
+        embedding_model_path=emb_model_path,
+        device_map=device,
     )
-    summariser_obj.load_models()
-    return summariser_obj
+    language_model.load_main_LLM(n_ctx=n_ctx, model_type=chat_type, task=task)
+    language_model.load_embedding_model()
+
+    return language_model
 
 
-summariser = start_language_models()
+summariser_model = start_language_models(task="summarization")
 
 ### Start the API
 from fastapi import FastAPI
 from typing import Optional, List, AnyStr
 from pydantic import BaseModel
+import asyncio
 
 app = FastAPI()
 
@@ -32,35 +38,22 @@ app = FastAPI()
 class Text2Summarise(BaseModel):
     query: AnyStr
     texts: List[AnyStr]
-    #text: Optional[AnyStr]
-    temperature: Optional[float]
-    max_length: Optional[int]
-    min_length: Optional[int]
-    do_sample: Optional[bool]
+    temperature: Optional[float] = 0.2
+    max_length: Optional[int] = 100
+    min_length: Optional[int] = 20
+    do_sample: Optional[bool] = False
+    re_summarise: Optional[bool] = True
+    similarity_threshold: Optional[float] = 0.3
+    combine_summaries: Optional[bool] = True
 
 
 @app.get("/")
-def root():
+async def root():
     return {"message": "welcome to Local LLM summariser"}
 
 
 @app.post("/summarise")
-def call_summariser(text2summarise: Text2Summarise):
-    summariser.get_query_embedding(text2summarise.query)
-    output_lst = []
-    for text in text2summarise.texts:
-        text_summary = summariser.summarise(
-         text=text,
-         max_length=text2summarise.max_length,
-         min_length=text2summarise.min_length,
-         do_sample=text2summarise.do_sample,
-         temperature=text2summarise.temperature
-        )
-        score = float(summariser.get_similarity_score(text_summary))
-        output_lst.append(
-            {"text": text,
-             "summary": text_summary,
-             "score": score
-             })
-    return output_lst
-
+async def call_summariser(text2summarise: Text2Summarise):
+    from lib.summariser import Summariser
+    summariser = Summariser(summariser_model, **text2summarise.__dict__)
+    return summariser.process()

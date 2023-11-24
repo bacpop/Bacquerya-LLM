@@ -1,86 +1,107 @@
-from transformers import pipeline
-from sentence_transformers import SentenceTransformer
+from lib.llm import LLM
+from config import LLM_SUMMARISER_SYSTEM_PROMPT
 
 
 class Summariser:
-    def __init__(self, summariser_model_path, embedding_model_path, device_map='auto'):
-        self.summariser_model_path = summariser_model_path
-        self.embedding_model_path = embedding_model_path
-        self.device_map = device_map
-        self.summariser = None
-        self.embedding_model = None
+    def __init__(self, language_model:LLM, instruction_prompt=None, system_prompt=None, **kwargs):
+        self.language_model = language_model
+        self.summariser = language_model.main_model
+        self.embedding_model = language_model.embedding_model
+        self.max_length = kwargs.get("max_length", 100)
+        self.min_length = kwargs.get("min_length", 20)
+        self.do_sample = kwargs.get("do_sample", False)
+        self.temperature = kwargs.get("temperature", 0.2)
+        self.query = kwargs.get("query")
+        self.texts = kwargs.get("texts")
+        self.similarity_threshold = kwargs.get("similarity_threshold", 0.0)
+        self.re_summarise = kwargs.get("re_summarise", True)
+        self.combine_summaries = kwargs.get("combine_summaries", True)
+
+        self.instruction_prompt = instruction_prompt
+        self.system_prompt = system_prompt if system_prompt is not None else LLM_SUMMARISER_SYSTEM_PROMPT
+
         self.emb_query = None
 
-    def load_models(self):
-        self.get_summariser()
-        self.get_sentence_embedding_model()
+    def process(self):
+        self.get_query_embedding(self.query)
+        output_lst = []
+        for text in self.texts:
+            text_summary = self.summarise(text)
+            query_similarity_score = self.get_query_similarity_score(text_summary)
+            summary_similarity_score = self.get_summary_similarity_score(text, text_summary)
+            print(f"first query score:{query_similarity_score}\nfirst summary score:{summary_similarity_score}")
 
-    def summarise(self, text, max_length=150, min_length=100, do_sample=None, temperature=0.2):
-        '''
-        Main method to summarise a given text.
-        :param text: input text
-        :param max_length: of words in the summary
-        :param min_length:
-        :param do_sample: somewhat related to the randomness of the summariser
-        :param temperature: creativity of the summariser
-        :return: summary text
-        '''
-        if self.summariser_model_path.lower().endswith(".gguf"):
-            prompt = self._prepare_prompt4llama(text, max_length)
-            return self.summariser(prompt, max_tokens=max_length*8,temperature=temperature)['choices'][0]['text'].replace("\n", " ").lstrip()
+            if self.re_summarise: text_summary = self.summarise(text=text_summary)
 
-        return self.summariser(text,
-            max_length=max_length,
-            min_length=min_length,
-            do_sample=do_sample,
-            temperature=temperature
-            )
+            query_similarity_score = self.get_query_similarity_score(text_summary)
+            summary_similarity_score = self.get_summary_similarity_score(text, text_summary)
+            print(f"second query score:{query_similarity_score}\nsecond summary score:{summary_similarity_score}")
 
-    def get_summariser(self):
-        if self.summariser_model_path.lower().endswith(".gguf"):
-            ##Load Llama model
-            from llama_cpp import Llama
-            self.summariser = Llama(self.summariser_model_path)
-            return self.summariser
-        self.summariser = pipeline(
-            "summarization",
-            self.summariser_model_path,
-            device_map=self.device_map
+            output_lst.append(
+                {#"text": text,  ## later remove this, this only stays for development
+                 "summary": text_summary,
+                 "query_similarity_score": query_similarity_score,
+                 "summary_similarity_score": summary_similarity_score,
+                 })
+
+        if self.combine_summaries:
+            output_lst.append(self.get_final_summary(output_lst))
+
+        return output_lst
+
+    def summarise(self, text):
+        instruction_prompt = self.instruction_prompt if self.instruction_prompt is not None else f"Summarise the following text under {self.max_length} words: {text}"
+        return self.language_model.chat(
+            instruction_prompt=instruction_prompt,
+            max_length=self.max_length,
+            min_length=self.min_length,
+            do_sample=self.do_sample,
+            temperature=self.temperature,
+            system_prompt=self.system_prompt
         )
-        return self.summariser
-
-    def get_sentence_embedding_model(self):
-        self.embedding_model = SentenceTransformer(self.embedding_model_path, device=self.device_map)
 
     def get_query_embedding(self, query:str):
         self.emb_query = self.embedding_model.encode(query, convert_to_tensor=True)
+        return self.emb_query
 
-    def get_similarity_score(self, text:str):
+    def get_query_similarity_score(self, text:str):
         """
-        outputs cosine similarity score between the query (gene and species) and the text
+        outputs cosine similarity score between the query and the summary
         :param text:
         :return:
         """
         from torch import cosine_similarity
         emb_text = self.embedding_model.encode(text, convert_to_tensor=True)
 
-        return cosine_similarity(self.emb_query, emb_text, dim=0)
+        return float(cosine_similarity(self.emb_query, emb_text, dim=0))
 
-    @staticmethod
-    def _prepare_prompt4llama(text, max_length):
-        from config import LLM_SYSTEM_PROMPT
-        prompt = f"""
-        ### System:
-        {LLM_SYSTEM_PROMPT}
-
-        ### Instruction:
-        Summarise the following text in {max_length//2} words: '{text}'
-
-        ### Response:
-        ...
+    def get_summary_similarity_score(self, text:str, summary:str):
         """
-        return prompt
+        outputs cosine similarity score between the text and the summary
+        :param text:
+        :return:
+        """
+        from torch import cosine_similarity
+        emb_text = self.embedding_model.encode(text, convert_to_tensor=True)
+        emb_summary = self.embedding_model.encode(summary, convert_to_tensor=True)
 
-#from transformers import T5Tokenizer, T5ForConditionalGeneration
-#tokenizer = T5Tokenizer.from_pretrained("google/flan-t5-large")
-#model = T5ForConditionalGeneration.from_pretrained("google/flan-t5-large", device_map=0)
+        return float(cosine_similarity(emb_text, emb_summary, dim=0))
+
+    def get_final_summary(self, summaries:list, similarity_threshold:float=0.0):
+        """
+        Combine summaries that are similar by query threshold
+        :param summaries:
+        :param similarity_threshold:
+        :return:
+        """
+        combined_summaries_text = ' '.join([summary["summary"] for summary in summaries if summary["query_similarity_score"] >= similarity_threshold])
+        print(combined_summaries_text)
+        final_summary = self.summarise(combined_summaries_text)
+        print(final_summary)
+
+        return {
+            #"text": combined_summaries_text,
+            "summary": final_summary,
+            "query_similarity_score": self.get_query_similarity_score(final_summary),
+            "summary_similarity_score": self.get_summary_similarity_score(combined_summaries_text, final_summary),
+             }
