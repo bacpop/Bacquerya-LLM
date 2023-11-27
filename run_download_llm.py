@@ -2,12 +2,13 @@
 from huggingface_hub import snapshot_download
 import os
 
+
 def llm_downloader(args):
     """
     Download a LLM model from HuggingFace and save it locally.
     """
     local_dir = os.path.join(args.local_dir, args.repo_id.split("/")[-1].replace(".", "_"))
-    os.makedirs(local_dir, exist_ok=True)
+    os.makedirs(local_dir, exist_ok=False)
     returned_path = snapshot_download(
         repo_id=args.repo_id,
         repo_type=args.repo_type,

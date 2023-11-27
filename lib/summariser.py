@@ -1,5 +1,6 @@
 from lib.llm import LLM
 from config import LLM_SUMMARISER_SYSTEM_PROMPT
+import logging
 
 
 class Summariser:
@@ -29,13 +30,13 @@ class Summariser:
             text_summary = self.summarise(text)
             query_similarity_score = self.get_query_similarity_score(text_summary)
             summary_similarity_score = self.get_summary_similarity_score(text, text_summary)
-            print(f"first query score:{query_similarity_score}\nfirst summary score:{summary_similarity_score}")
+            logging.info(f"first query score:{query_similarity_score}\nfirst summary score:{summary_similarity_score}")
 
             if self.re_summarise: text_summary = self.summarise(text=text_summary)
 
             query_similarity_score = self.get_query_similarity_score(text_summary)
             summary_similarity_score = self.get_summary_similarity_score(text, text_summary)
-            print(f"second query score:{query_similarity_score}\nsecond summary score:{summary_similarity_score}")
+            logging.info(f"second query score:{query_similarity_score}\nsecond summary score:{summary_similarity_score}")
 
             output_lst.append(
                 {#"text": text,  ## later remove this, this only stays for development
@@ -95,9 +96,9 @@ class Summariser:
         :return:
         """
         combined_summaries_text = ' '.join([summary["summary"] for summary in summaries if summary["query_similarity_score"] >= similarity_threshold])
-        print(combined_summaries_text)
+        logging.info(combined_summaries_text)
         final_summary = self.summarise(combined_summaries_text)
-        print(final_summary)
+        logging.info(final_summary)
 
         return {
             #"text": combined_summaries_text,
