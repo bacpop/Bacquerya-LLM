@@ -3,28 +3,8 @@
 ## Output: summary of the texts (paragraphs) with relevance scores to the query
 
 
-def start_language_models(lang_model_path=None, emb_model_path=None, device=None, chat_type=None, n_ctx=None, task=''):
-    ### Load LLM models
-    from config import DEFAULT_SUMMARISER_LANG_MODEL, DEFAULT_EMBEDDING_LANG_MODEL, DEVICE_MAP, CHAT_TYPE, N_CTX
-    from lib.summariser import LLM
-    lang_model_path = DEFAULT_SUMMARISER_LANG_MODEL if lang_model_path is None else lang_model_path
-    emb_model_path = DEFAULT_EMBEDDING_LANG_MODEL if emb_model_path is None else emb_model_path
-    device = DEVICE_MAP if device is None else device
-    chat_type = CHAT_TYPE if chat_type is None else chat_type
-    n_ctx = N_CTX if n_ctx is None else n_ctx
-
-    language_model = LLM(
-        main_model_path=lang_model_path,
-        embedding_model_path=emb_model_path,
-        device_map=device,
-    )
-    language_model.load_main_LLM(n_ctx=n_ctx, model_type=chat_type, task=task)
-    language_model.load_embedding_model()
-
-    return language_model
-
-
-summariser_model = start_language_models(task="summarization")
+from lib.llm import start_language_models
+summariser_model = start_language_models()
 
 ### Start the API
 from fastapi import FastAPI

@@ -8,7 +8,7 @@ class LLM:
     Base class for LLMs
     Loads the summariser and the sentence embedding model
     """
-    def __init__(self, main_model_path, embedding_model_path, device_map='auto', model_type=None, chat_type=None):
+    def __init__(self, main_model_path, embedding_model_path=None, device_map='auto', model_type=None, chat_type=None):
         self.main_model_path = main_model_path
         self.embedding_model_path = embedding_model_path
         self.device_map = device_map
@@ -34,10 +34,10 @@ class LLM:
             return self.main_model
 
     def load_embedding_model(self):
-        self.embedding_model = SentenceTransformer(self.embedding_model_path, device=self.device_map)
+        self.embedding_model = SentenceTransformer(self.embedding_model_path, device=self.device_map) if self.embedding_model_path is not None else None
 
     def get_sentence_embedding(self, text:str):
-        return self.embedding_model.encode(text, convert_to_tensor=True)
+        return self.embedding_model.encode(text, convert_to_tensor=True) if self.embedding_model is not None else None
 
     @staticmethod
     def _prepare_prompt4llama(instruction_prompt=None, system_prompt=None):
@@ -64,3 +64,28 @@ class LLM:
                 'text'].replace("\n", " ").lstrip()
         else:
             return self.main_model(instruction_prompt, max_length=max_length, min_length=min_length, temperature=temperature, do_sample=do_sample)
+
+
+def start_language_models(lang_model_path=None, emb_model_path=None, device_map=None, model_type=None, chat_type=None, n_ctx=None):
+    ### Load LLM models
+    import os
+    from config import SUMMARISER_LANG_MODEL, EMBEDDING_LANG_MODEL, DEVICE_MAP, CHAT_TYPE, MODEL_TYPE, N_CTX
+
+    lang_model_path = os.getenv("SUMMARISER_LANG_MODEL", SUMMARISER_LANG_MODEL) if lang_model_path is None else lang_model_path
+    emb_model_path = os.getenv("EMBEDDING_LANG_MODEL", EMBEDDING_LANG_MODEL) if emb_model_path is None else emb_model_path
+    device = os.getenv("DEVICE_MAP", DEVICE_MAP) if device_map is None else device_map
+    chat_type = os.getenv("CHAT_TYPE", CHAT_TYPE) if chat_type is None else chat_type
+    model_type = os.getenv("MODEL_TYPE", MODEL_TYPE) if model_type is None else model_type
+    n_ctx = os.getenv("N_CTX", N_CTX) if n_ctx is None else n_ctx
+
+    language_model = LLM(
+        main_model_path=lang_model_path,
+        embedding_model_path=emb_model_path,
+        device_map=device,
+        model_type=model_type,
+        chat_type=chat_type
+    )
+    language_model.load_main_LLM(n_ctx=n_ctx, task="summarization")
+    language_model.load_embedding_model()
+
+    return language_model
