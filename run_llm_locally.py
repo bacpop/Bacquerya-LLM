@@ -10,10 +10,11 @@ def summarise_articles(args):
         device_map=args.device_map,
         model_type=args.model_type,
         chat_type=args.chat_type,
-        n_ctx=args.n_ctx
+        n_ctx=args.n_ctx,
+        n_gpu_layers=args.n_gpu_layers,
     )
 
-    summariser = Summariser(summariser_model, texts=args.articles_json)
+    summariser = Summariser(summariser_model, texts=args.articles_json, query=args.query)
     summarised_articles = summariser.process()
     with open(args.output_file, "w") as f:
         json.dump(summarised_articles, f)
@@ -26,10 +27,12 @@ if __name__ == "__main__":
     argparse.add_argument("--language_model", type=str,required=True, help="Main LLM model for summarisation")
     argparse.add_argument("--embedding_model", type=str, default=None, required=False, help="Sentence embedding model to calculate similarity")
     argparse.add_argument("--device_map", type=str, default='cuda', required=False, help="Device map for LLM model")
-    argparse.add_argument("--model_type", type=str, default=None, required=False, help="LLM model type")
-    argparse.add_argument("--chat_type", type=str, default=None, required=False, help="LLM chat type")
+    argparse.add_argument("--n_gpu_layers", type=int, default=0, required=False, help="number of layers for LLM model")
+    argparse.add_argument("--model_type", type=str, default='gguf', required=False, help="LLM model type")
+    argparse.add_argument("--chat_type", type=str, default="llama", required=False, help="LLM chat type")
     argparse.add_argument("--n_ctx", type=int, default=8000, required=False, help="Number of context for LLM model")
     argparse.add_argument("--articles_json", type=str, required=True, help="JSON file containing articles")
+    argparse.add_argument("--query", type=str, required=True, help="Query string")
     argparse.add_argument("--output_file", type=str, required=True, help="Output file containing summarised articles")
 
     args = argparse.parse_args()

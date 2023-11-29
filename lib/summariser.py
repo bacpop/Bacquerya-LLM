@@ -27,7 +27,7 @@ class Summariser:
 
     def process(self):
         ##TODO: divide this process into sub-processes, maybe NextFlow?
-        self.get_query_embedding(self.query) if self.embedding_model is not None else None
+        if self.query is not None: self.get_query_embedding(self.query)
 
         if os.path.isfile(self.texts) and self.texts.endswith(".json"):
             with open(self.texts, "r") as f:
@@ -44,7 +44,7 @@ class Summariser:
                 {#"text": text,  ## later remove this, this only stays for development
                  "summary": text_summary,
                  "query_similarity_score": self.get_query_similarity_score(text_summary),
-                 "summary_similarity_score": self.get_summary_similarity_score(text, text_summary) if self.embedding_model is not None else None,
+                 "summary_similarity_score": self.get_summary_similarity_score(text, text_summary)
                  })
 
         if self.combine_summaries:
@@ -64,7 +64,7 @@ class Summariser:
         )
 
     def get_query_embedding(self, query:str):
-        self.emb_query = self.embedding_model.encode(query, convert_to_tensor=True) if self.embedding_model is not None else None
+        self.emb_query = self.language_model.get_sentence_embedding(query)
         return self.emb_query
 
     def get_query_similarity_score(self, text:str):
@@ -74,8 +74,7 @@ class Summariser:
         :return:
         """
         from torch import cosine_similarity
-        if self.embedding_model is None: return None
-        emb_text = self.embedding_model.encode(text, convert_to_tensor=True)
+        emb_text = self.language_model.get_sentence_embedding(text)
 
         return float(cosine_similarity(self.emb_query, emb_text, dim=0))
 
@@ -87,9 +86,7 @@ class Summariser:
         """
         from torch import cosine_similarity
         if self.embedding_model is None: return None
-        emb_text = self.embedding_model.encode(text, convert_to_tensor=True)
-        emb_summary = self.embedding_model.encode(summary, convert_to_tensor=True)
-
+        emb_text, emb_summary = self.language_model.get_sentence_embedding([text,summary])
         return float(cosine_similarity(emb_text, emb_summary, dim=0))
 
     def get_final_summary(self, summaries:list, similarity_threshold:float=0.0):
