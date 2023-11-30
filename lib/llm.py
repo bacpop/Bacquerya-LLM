@@ -37,7 +37,11 @@ class LLM:
         self.embedding_model = SentenceTransformer(self.embedding_model_path, device=self.device_map) if self.embedding_model_path is not None else None
 
     def get_sentence_embedding(self, text:str):
-        return self.embedding_model.encode(text, convert_to_tensor=True) if self.embedding_model is not None else self.main_model.embed(text)
+        embedding = self.embedding_model.encode(text, convert_to_tensor=True) if self.embedding_model is not None else self.main_model.embed(text)
+        if isinstance(embedding, list):
+            import torch
+            embedding = torch.FloatTensor(embedding)
+        return embedding
 
     @staticmethod
     def _prepare_prompt4llama(instruction_prompt=None, system_prompt=None):

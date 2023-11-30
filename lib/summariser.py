@@ -17,8 +17,8 @@ class Summariser:
         self.query = kwargs.get("query")
         self.texts = kwargs.get("texts")
         self.similarity_threshold = kwargs.get("similarity_threshold", 0.0)
-        self.re_summarise = kwargs.get("re_summarise", True)
-        self.combine_summaries = kwargs.get("combine_summaries", True)
+        self.re_summarise = kwargs.get("re_summarise", False)
+        self.combine_summaries = kwargs.get("combine_summaries", False)
 
         self.instruction_prompt = instruction_prompt
         self.system_prompt = system_prompt if system_prompt is not None else LLM_SUMMARISER_SYSTEM_PROMPT
@@ -75,7 +75,7 @@ class Summariser:
         """
         from torch import cosine_similarity
         emb_text = self.language_model.get_sentence_embedding(text)
-
+        if emb_text is None or self.emb_query is None: return None
         return float(cosine_similarity(self.emb_query, emb_text, dim=0))
 
     def get_summary_similarity_score(self, text:str, summary:str):
@@ -85,8 +85,8 @@ class Summariser:
         :return:
         """
         from torch import cosine_similarity
-        if self.embedding_model is None: return None
-        emb_text, emb_summary = self.language_model.get_sentence_embedding([text,summary])
+        emb_text = self.language_model.get_sentence_embedding(text)
+        emb_summary = self.language_model.get_sentence_embedding(summary)
         return float(cosine_similarity(emb_text, emb_summary, dim=0))
 
     def get_final_summary(self, summaries:list, similarity_threshold:float=0.0):
