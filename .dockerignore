@@ -2,7 +2,6 @@
 ./venv
 .ipynb_checkpoints
 .pytest_cache/
-./trash/
 ./try_llm/
 ./scores
 ./data
